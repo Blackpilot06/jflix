@@ -1,0 +1,7 @@
+name = "jflix-tmdb-proxy"
+main = "tmdb-proxy.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+# Your GitHub Pages ORIGIN only (no path, no trailing slash). Several: "https://a.github.io,https://jflix.com"
+ALLOWED_ORIGINS = "https://YOUR-USERNAME.github.io"
