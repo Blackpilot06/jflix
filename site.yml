@@ -1,0 +1,41 @@
+name: Build and deploy
+on:
+  push: { branches: [main] }
+  schedule: [{ cron: "17 */6 * * *" }]     # refresh the catalogue every 6 hours
+  workflow_dispatch:
+permissions: { contents: write, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/cache@v4
+        with: { path: .cache, key: "tmdb-${{ github.run_id }}", restore-keys: "tmdb-" }
+      - name: Refresh catalogue from TMDB
+        continue-on-error: true            # if TMDB is unreachable, the last good catalogue is deployed
+        env:
+          TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
+          REGION: ${{ vars.REGION }}
+        run: node scripts/build-catalogue.mjs
+      - name: Commit refreshed data (contains no secrets)
+        run: |
+          git config user.name "jflix-bot"; git config user.email "jflix-bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || (git commit -m "Refresh catalogue" && git push)
+      - name: Prepare site
+        run: mkdir _site && cp index.html config.js _site/ && cp -r data _site/ && touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4
